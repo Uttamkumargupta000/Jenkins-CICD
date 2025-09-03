@@ -2,6 +2,8 @@
 
 This repository contains a Jenkins Pipeline and supporting Python automation used to cut production releases, create GitHub tags/releases, monitor GitHub Actions, collect successful service artifacts, and drive production deployments via ArgoCD manifests.
 
+> At a glance: Inputs → Approvals → Tag & Release (only if changes) → Wait for CI → Update ArgoCD → Sync & Deploy.
+
 ## Overview
 
 - **Jenkinsfile**: Orchestrates the release process end‑to‑end on the `gi-jenkins-master` node.
@@ -47,56 +49,47 @@ This repository contains a Jenkins Pipeline and supporting Python automation use
 9. The deployment script updates `argocd-prod` manifests (image `tag:` values) only for matching services and pushes changes to the `main` branch, allowing ArgoCD to sync and deploy.
 
 ```mermaid
-sequenceDiagram
-  autonumber
-  participant U as User
-  participant J as Jenkins Pipeline
-  participant S1 as Production_release_newtest.py
-  participant GH as GitHub (API)
-  participant GA as GitHub Actions
-  participant S2 as production_deployment_all.py
-  participant AR as argocd-prod (Git)
-  participant CD as ArgoCD
+flowchart TD
+  %% Nodes
+  A[User\nSelect SERVICES + Base + Tag] --> B{Approval: Build}
+  B -- No --> Z1[Stop\nApproval rejected]
+  B -- Yes --> C[Run Production_release_newtest.py]
+  C --> D{Changes vs Base?}
+  D -- No --> Z2[Stop\nNo changes → no release]
+  D -- Yes --> E[Create Tag + GitHub Release]
+  E --> F[Poll GitHub Actions for tag]
+  F --> G{CI Success?}
+  G -- No/Timeout --> Z3[Fail early\nLink to workflow run]
+  G -- Yes --> H{gi-sirius selected?}
+  H -- Yes --> I[Download Success-Service artifact\nMerge final services]
+  H -- No --> J[Skip]
+  I --> K{Approval: Deploy}
+  J --> K{Approval: Deploy}
+  K -- No --> Z4[Stop\nApproval rejected]
+  K -- Yes --> L[Run production_deployment_all.py\nUpdate image tags in argocd-prod]
+  L --> M[Commit & Push]
+  M --> N[ArgoCD detects Git change]
+  N --> O[Sync & Deploy to Production]
 
-  rect rgba(255,245,204,0.95)
-    note over U,J: Build & Tag Phase
-    U->>J: Trigger job + select SERVICES + input Base/Tag
-    J->>J: Approval gate (Build)
-    alt Approved
-      J->>S1: Run with base, tag, services, token
-      S1->>GH: Compare base vs latest tag per repo
-      S1->>GH: Create Tag + Release when changes exist
-      S1-->>J: JSON list of released repos
-      loop per released repo
-        J->>GH: Query workflow runs (production-release.yml, ref=tag)
-        GH-->>J: Latest run status
-        alt Completed=success
-          J->>GA: Record success
-        else Completed=failure/timeout
-          J-->>U: Fail early with link to run
-        end
-      end
-    else Rejected
-      J-->>U: Build approval rejected
-    end
+  %% Groups (phases)
+  subgraph P1[Build & Tag]
+    direction TB
+    B --> C --> D --> E --> F --> G --> H
   end
+  style P1 fill:#FFF5CC,stroke:#D3B300,stroke-width:1px,color:#333
 
-  rect rgba(220,248,198,0.95)
-    note over J,CD: Deploy Phase
-    J->>J: Approval gate (Deployment)
-    alt Approved
-      J->>S2: Run with tag, consolidated services, token
-      S2->>AR: Clone/pull, update tags in manifests
-      S2->>AR: Commit & push changes
-      AR-->>CD: Git change detected
-      CD-->>CD: Sync and deploy
-      CD-->>J: Deployment status
-    else Rejected
-      J-->>U: Deployment approval rejected
-    end
+  subgraph P2[Deploy]
+    direction TB
+    K --> L --> M --> N --> O
   end
+  style P2 fill:#E4F8D1,stroke:#65A30D,stroke-width:1px,color:#222
 
-  Note over U,CD: Legend\nGreen = Deploy Phase, Yellow = Build & Tag\nEarly fail path shown on CI failure/timeout
+  %% Styles for emphasis
+  classDef stop fill:#FFE4E6,stroke:#FB7185,color:#7F1D1D
+  class Z1,Z2,Z3,Z4 stop
+
+  %% Legend
+  %% Yellow = Build & Tag, Green = Deploy, Red = Early stop/fail
 ```
 
 ## Pipeline Stages (Jenkinsfile)
