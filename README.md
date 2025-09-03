@@ -34,6 +34,53 @@ This repository contains a Jenkins Pipeline and supporting Python automation use
   - **Base Branch**: Branch from which to cut the release (e.g., `develop` or `main`).
   - **Release Tag**: A semver tag like `v1.0.0`.
 
+## End-to-End Workflow
+
+1. A user triggers the Jenkins job, selects SERVICES, and enters the Base Branch and Release Tag.
+2. Jenkins validates approvals from allowed approvers before proceeding.
+3. Jenkins checks out a local working folder and invokes `Production_release_newtest.py` with the provided inputs.
+4. For each selected repo, the script compares the provided base branch vs the latest tag; if changes exist, it creates a new Git tag and a GitHub Release and prints a final JSON array of repos released.
+5. Jenkins parses the script output and polls GitHub Actions for each released repo’s `production-release.yml` run for the provided tag until they succeed (or timeout/fail).
+6. If `gi-sirius` is part of the selection, Jenkins downloads the `Success-Service` artifact and augments the final service list from `success-service.txt`.
+7. Jenkins requests a second deployment approval.
+8. Jenkins invokes `production_deployment_all.py` with the release tag and the consolidated list of services.
+9. The deployment script updates `argocd-prod` manifests (image `tag:` values) only for matching services and pushes changes to the `main` branch, allowing ArgoCD to sync and deploy.
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant J as Jenkins Pipeline
+  participant S1 as Production_release_newtest.py
+  participant GH as GitHub (API)
+  participant GA as GitHub Actions
+  participant S2 as production_deployment_all.py
+  participant AR as argocd-prod (Git)
+  participant CD as ArgoCD
+
+  U->>J: Trigger job + select SERVICES + input Base/Tag
+  J->>J: Approval gate (Build)
+  J->>S1: Run with base, tag, services, token
+  S1->>GH: Compare base vs latest tag per repo
+  S1->>GH: Create Tag + Release when changes exist
+  S1-->>J: JSON list of released repos
+  loop per released repo
+    J->>GH: Query workflow runs for production-release.yml (ref=tag)
+    GH-->>J: Latest run status
+    J->>GA: Wait until completed=success
+  end
+  alt gi-sirius selected
+    J->>GH: Download artifact Success-Service
+    GH-->>J: success-service.txt
+    J->>J: Merge services list (unique, filter)
+  end
+  J->>J: Approval gate (Deployment)
+  J->>S2: Run with tag, consolidated services, token
+  S2->>AR: Clone/pull, update tags in manifests
+  S2->>AR: Commit & push changes
+  AR-->>CD: Git change detected
+  CD-->>CD: Sync and deploy
+```
+
 ## Pipeline Stages (Jenkinsfile)
 
 1. **Manual Input**
