@@ -48,6 +48,7 @@ This repository contains a Jenkins Pipeline and supporting Python automation use
 
 ```mermaid
 sequenceDiagram
+  autonumber
   participant U as User
   participant J as Jenkins Pipeline
   participant S1 as Production_release_newtest.py
@@ -57,28 +58,35 @@ sequenceDiagram
   participant AR as argocd-prod (Git)
   participant CD as ArgoCD
 
-  U->>J: Trigger job + select SERVICES + input Base/Tag
-  J->>J: Approval gate (Build)
-  J->>S1: Run with base, tag, services, token
-  S1->>GH: Compare base vs latest tag per repo
-  S1->>GH: Create Tag + Release when changes exist
-  S1-->>J: JSON list of released repos
-  loop per released repo
-    J->>GH: Query workflow runs for production-release.yml (ref=tag)
-    GH-->>J: Latest run status
-    J->>GA: Wait until completed=success
+  rect rgba(255,245,204,0.9)
+    note over J: Build & Tag Phase
+    U->>J: Trigger job + select SERVICES + input Base/Tag
+    J->>J: Approval gate (Build)
+    J->>S1: Run with base, tag, services, token
+    S1->>GH: Compare base vs latest tag per repo
+    S1->>GH: Create Tag + Release when changes exist
+    S1-->>J: JSON list of released repos
+    loop per released repo
+      J->>GH: Query workflow runs (production-release.yml, ref=tag)
+      GH-->>J: Latest run status
+      J->>GA: Wait until completed=success
+    end
+    alt gi-sirius selected
+      J->>GH: Download artifact Success-Service
+      GH-->>J: success-service.txt
+      J->>J: Merge services list (unique, filter)
+    end
   end
-  alt gi-sirius selected
-    J->>GH: Download artifact Success-Service
-    GH-->>J: success-service.txt
-    J->>J: Merge services list (unique, filter)
+
+  rect rgba(220,248,198,0.9)
+    note over J: Deploy Phase
+    J->>J: Approval gate (Deployment)
+    J->>S2: Run with tag, consolidated services, token
+    S2->>AR: Clone/pull, update tags in manifests
+    S2->>AR: Commit & push changes
+    AR-->>CD: Git change detected
+    CD-->>CD: Sync and deploy
   end
-  J->>J: Approval gate (Deployment)
-  J->>S2: Run with tag, consolidated services, token
-  S2->>AR: Clone/pull, update tags in manifests
-  S2->>AR: Commit & push changes
-  AR-->>CD: Git change detected
-  CD-->>CD: Sync and deploy
 ```
 
 ## Pipeline Stages (Jenkinsfile)
