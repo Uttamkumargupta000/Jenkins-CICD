@@ -155,7 +155,7 @@ Notes:
 
 - `Jenkinsfile`: Release pipeline.
 - `Production_release_newtest.py`: Tag and GitHub Release automation.
-- `production_deployment_all.py`: ArgoCD tag updater (generic + <repo-name>). 
+- `production_deployment_all.py`: ArgoCD tag updater (generic + `<repo-name>`). 
 - `production_deployment.py`: Alternate ArgoCD tag updater.
 - `CD.py`: Repo layout variant for updating tags.
 - `README.md`: This document.
