@@ -29,7 +29,7 @@ This repository contains a Jenkins Pipeline and supporting Python automation use
 ## Parameters
 
 - **SERVICES** (Extended multi‑select): Comma‑separated GitHub repositories to include. Example default:
-  - `gripinvest/grip-client-backend, gripinvest/grip-client-web, gripinvest/gi-client-static, gripinvest/gi-client-web, gripinvest/gi-sirius, gripinvest/gi-strapi-cms, gripinvest/grip-terminal-web, gripinvest/gi-partner-portal`
+  - `owner/repo1, owner/repo2, owner/repo3, owner/repo4, owner/repo5, owner/repo6, owner/repo7, owner/repo8` and so on.
 - Entered at runtime via Jenkins `input` prompts:
   - **Base Branch**: Branch from which to cut the release (e.g., `develop` or `main`).
   - **Release Tag**: A semver tag like `v1.0.0`.
@@ -47,10 +47,10 @@ This repository contains a Jenkins Pipeline and supporting Python automation use
 
 4. **Build New Release**
    - Ensures base directory `C:\production_cic` exists.
-   - Clones or refreshes `gripinvest/jenkins-production-cicd` into `C:\production_cic\jenkins-production-cicd` on the provided base branch.
+   - Clones or refreshes `owner/repo` into `C:\production_cic\repo(Jenkins_CICD)` on the provided base branch.
    - Invokes:
      ```
-     python "C:\\production_cic\\jenkins-production-cicd\\Production_release_newtest.py" <BASE_BRANCH> <RELEASE_TAG> <SERVICES> %GITHUB_TOKEN%
+     python "C:\\production_cic\\repo(Jenkins-CICD)\\Production_release_newtest.py" <BASE_BRANCH> <RELEASE_TAG> <SERVICES> %GITHUB_TOKEN%
      ```
    - The Python script prints a JSON array of repos for which tags/releases were created (last line). The pipeline parses this to derive the set of repos participating in the release.
 
@@ -58,7 +58,7 @@ This repository contains a Jenkins Pipeline and supporting Python automation use
    - For each repo/tag, polls `actions/workflows/production-release.yml` for runs with `ref=<RELEASE_TAG>` until completion or timeout. Fails quickly if any run concludes not successful.
 
 6. **Download and Extract the GitHub Artifact** (conditional)
-   - If `gripinvest/gi-sirius` is among selected services:
+   - If `owner/repo4` is among selected services:
      - Downloads the latest successful run artifact named `Success-Service` from `production-release.yml` and extracts `success-service.txt` into `C:\production_cic`.
      - Populates the list `successServicesList` with one service per line from that artifact.
 
@@ -67,7 +67,7 @@ This repository contains a Jenkins Pipeline and supporting Python automation use
 
 8. **Deployment Stage**
    - Second approval gate (same approvers).
-   - Combines services detected from tagging and the optional `gi-sirius` artifact list. Removes `gripinvest/` prefix and excludes `gi-sirius` itself.
+   - Combines services detected from tagging and the optional `repo4` artifact list. Removes `owner/` prefix and excludes `repo4` itself.
    - Invokes:
      ```
      python "C:\\production_cic\\jenkins-production-cicd\\production_deployment_all.py" <RELEASE_TAG> <comma_joined_services> %GITHUB_TOKEN%
