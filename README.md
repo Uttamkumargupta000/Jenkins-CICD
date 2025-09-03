@@ -94,8 +94,8 @@ This repository contains a Jenkins Pipeline and supporting Python automation use
   - Clones or updates `argocd-prod` locally.
   - Scans `services/*/*.{yaml,yml}` files for image blocks like:
     - Generic: `repository: ghcr.io/<org>/<repo>` followed by `tag: vX.Y.Z`.
-    - gi‑sirius: `repository: ghcr.io/<org>/<suborg>/gi-sirius-<suffix>` followed by `tag: vX.Y.Z`.
-  - Updates only entries whose repo name (or gi‑sirius suffix) is present in the provided services list.
+    - gi‑sirius: `repository: ghcr.io/<org>/<suborg>/<repo-name>-<suffix>` followed by `tag: vX.Y.Z`.
+  - Updates only entries whose repo name (or <repo-name> suffix) is present in the provided services list.
   - Commits and pushes with message `Updated tag to <release_tag>`.
 
 ### production_deployment.py
@@ -122,16 +122,16 @@ Example commands:
 
 ```bash
 # Create tags/releases for selected repos if changes exist
-python Production_release_newtest.py develop v1.2.3 "gripinvest/grip-client-web,gripinvest/gi-sirius" YOUR_GH_TOKEN
+python Production_release_newtest.py develop <tag: v1.0.0> "<owner>/<repo>, <owner>/<repo-name>" YOUR_GH_TOKEN
 
 # Update ArgoCD manifests for the services and push
-python production_deployment_all.py v1.2.3 "gi-client-web,gi-partner-portal" YOUR_GH_TOKEN
+python production_deployment_all.py <tag: v1.0.0> "<repo1>, <repo2>" YOUR_GH_TOKEN
 
 # Alternate updater
-python production_deployment.py v1.2.3 "gi-sirius-app-bridge,gi-sirius-auth" YOUR_GH_TOKEN
+python production_deployment.py <tag: v1.0.0> "<repo1-name>,<repo2-name>" YOUR_GH_TOKEN
 
 # CD.py variant (targets different repo layout)
-python CD.py v1.2.3 "gi-client-static,gi-client-web" YOUR_GH_TOKEN
+python CD.py v1.2.3 "<repo1>, <repo2>, <repo3>" YOUR_GH_TOKEN
 ```
 
 Notes:
@@ -149,13 +149,13 @@ Notes:
 - Invalid tag format: Use semver style like `v18.0.0`.
 - GitHub API 401: Check the `GITHUB_TOKEN` credential and scopes.
 - No repos detected for release: Ensure your selected repos have commits ahead of the last tag on the chosen base branch.
-- No files updated: Confirm the service names provided match the repo names or `gi-sirius-<suffix>` conventions in the manifests.
+- No files updated: Confirm the service names provided match the repo names or `<repo-name>-<suffix>` conventions in the manifests.
 
 ## Repository Layout
 
 - `Jenkinsfile`: Release pipeline.
 - `Production_release_newtest.py`: Tag and GitHub Release automation.
-- `production_deployment_all.py`: ArgoCD tag updater (generic + gi‑sirius). 
+- `production_deployment_all.py`: ArgoCD tag updater (generic + <repo-name>). 
 - `production_deployment.py`: Alternate ArgoCD tag updater.
 - `CD.py`: Repo layout variant for updating tags.
 - `README.md`: This document.
