@@ -58,35 +58,45 @@ sequenceDiagram
   participant AR as argocd-prod (Git)
   participant CD as ArgoCD
 
-  rect rgba(255,245,204,0.9)
-    note over J: Build & Tag Phase
+  rect rgba(255,245,204,0.95)
+    note over U,J: Build & Tag Phase
     U->>J: Trigger job + select SERVICES + input Base/Tag
     J->>J: Approval gate (Build)
-    J->>S1: Run with base, tag, services, token
-    S1->>GH: Compare base vs latest tag per repo
-    S1->>GH: Create Tag + Release when changes exist
-    S1-->>J: JSON list of released repos
-    loop per released repo
-      J->>GH: Query workflow runs (production-release.yml, ref=tag)
-      GH-->>J: Latest run status
-      J->>GA: Wait until completed=success
-    end
-    alt gi-sirius selected
-      J->>GH: Download artifact Success-Service
-      GH-->>J: success-service.txt
-      J->>J: Merge services list (unique, filter)
+    alt Approved
+      J->>S1: Run with base, tag, services, token
+      S1->>GH: Compare base vs latest tag per repo
+      S1->>GH: Create Tag + Release when changes exist
+      S1-->>J: JSON list of released repos
+      loop per released repo
+        J->>GH: Query workflow runs (production-release.yml, ref=tag)
+        GH-->>J: Latest run status
+        alt Completed=success
+          J->>GA: Record success
+        else Completed=failure/timeout
+          J-->>U: Fail early with link to run
+        end
+      end
+    else Rejected
+      J-->>U: Build approval rejected
     end
   end
 
-  rect rgba(220,248,198,0.9)
-    note over J: Deploy Phase
+  rect rgba(220,248,198,0.95)
+    note over J,CD: Deploy Phase
     J->>J: Approval gate (Deployment)
-    J->>S2: Run with tag, consolidated services, token
-    S2->>AR: Clone/pull, update tags in manifests
-    S2->>AR: Commit & push changes
-    AR-->>CD: Git change detected
-    CD-->>CD: Sync and deploy
+    alt Approved
+      J->>S2: Run with tag, consolidated services, token
+      S2->>AR: Clone/pull, update tags in manifests
+      S2->>AR: Commit & push changes
+      AR-->>CD: Git change detected
+      CD-->>CD: Sync and deploy
+      CD-->>J: Deployment status
+    else Rejected
+      J-->>U: Deployment approval rejected
+    end
   end
+
+  Note over U,CD: Legend\nGreen = Deploy Phase, Yellow = Build & Tag\nEarly fail path shown on CI failure/timeout
 ```
 
 ## Pipeline Stages (Jenkinsfile)
